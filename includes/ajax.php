@@ -1,6 +1,9 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+// Μόνο οι MIME types που υποστηρίζει το OpenAI Vision
+define( 'AATG_SUPPORTED_MIME_TYPES', [ 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml' ] );
+
 // ─── Bulk generate ────────────────────────────────────────────────────────────
 add_action( 'wp_ajax_aatg_bulk_generate', 'aatg_ajax_bulk_generate' );
 
@@ -22,7 +25,7 @@ function aatg_ajax_bulk_generate() {
 
     $args = [
         'post_type'      => 'attachment',
-        'post_mime_type' => 'image',
+        'post_mime_type' => AATG_SUPPORTED_MIME_TYPES,
         'post_status'    => 'inherit',
         'posts_per_page' => $batch_size,
         'offset'         => $offset,
@@ -57,8 +60,9 @@ function aatg_ajax_bulk_generate() {
     $log       = [];
 
     foreach ( $ids as $id ) {
-        $url   = wp_get_attachment_url( $id );
-        $title = get_the_title( $id );
+        $url       = wp_get_attachment_url( $id );
+        $title     = get_the_title( $id );
+        $mime_type = get_post_mime_type( $id );
 
         if ( ! $url ) {
             $errors++;
@@ -66,7 +70,11 @@ function aatg_ajax_bulk_generate() {
             continue;
         }
 
-        $result = aatg_generate_alt( $url, $title, $language, $api_key, $model );
+        if ( $mime_type === 'image/svg+xml' ) {
+            $result = aatg_generate_alt_svg( $id, $title, $language, $api_key, $model );
+        } else {
+            $result = aatg_generate_alt( $url, $title, $language, $api_key, $model );
+        }
 
         if ( is_wp_error( $result ) ) {
             $errors++;
@@ -105,7 +113,7 @@ function aatg_ajax_count_images() {
 
     $args = [
         'post_type'      => 'attachment',
-        'post_mime_type' => 'image',
+        'post_mime_type' => AATG_SUPPORTED_MIME_TYPES,
         'post_status'    => 'inherit',
         'posts_per_page' => -1,
         'fields'         => 'ids',
@@ -178,7 +186,7 @@ function aatg_ajax_get_stats() {
 
     $base_args = [
         'post_type'      => 'attachment',
-        'post_mime_type' => 'image',
+        'post_mime_type' => AATG_SUPPORTED_MIME_TYPES,
         'post_status'    => 'inherit',
         'posts_per_page' => -1,
         'fields'         => 'ids',
