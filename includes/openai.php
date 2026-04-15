@@ -77,6 +77,10 @@ function aatg_generate_alt( $image_url, $image_title, $language, $api_key, $mode
     $code = wp_remote_retrieve_response_code( $response );
     $data = json_decode( wp_remote_retrieve_body( $response ), true );
 
+    if ( ! is_array( $data ) ) {
+        return new WP_Error( 'invalid_response', 'Μη αναμενόμενη απάντηση από OpenAI (HTTP ' . $code . ').' );
+    }
+
     if ( $code === 401 ) {
         return new WP_Error( 'auth_error', 'Λάθος API key. Έλεγξε τις ρυθμίσεις.' );
     }

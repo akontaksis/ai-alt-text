@@ -56,13 +56,21 @@ function aatg_decrypt_api_key( $stored ) {
     if ( ! function_exists( 'openssl_decrypt' ) ) return $stored;
 
     $data = base64_decode( $stored, true );
-    if ( $data === false || strpos( $data, '::' ) === false ) {
+    if ( $data === false ) {
+        return $stored; // legacy plaintext — επιστρέφεται ως έχει
+    }
+
+    $iv_len = openssl_cipher_iv_length( 'AES-256-CBC' );
+
+    // Χρήση fixed-offset αντί explode — αποφεύγει false splits αν το IV περιέχει '::' bytes
+    if ( strlen( $data ) <= $iv_len + 2 || substr( $data, $iv_len, 2 ) !== '::' ) {
         return $stored; // legacy plaintext — επιστρέφεται ως έχει
     }
 
     $salt      = defined( 'AUTH_KEY' ) ? AUTH_KEY : wp_salt( 'auth' );
     $enc_key   = substr( hash( 'sha256', $salt ), 0, 32 );
-    list( $iv, $enc ) = explode( '::', $data, 2 );
+    $iv        = substr( $data, 0, $iv_len );
+    $enc       = substr( $data, $iv_len + 2 );
     $decrypted = openssl_decrypt( $enc, 'AES-256-CBC', $enc_key, 0, $iv );
 
     return ( $decrypted !== false ) ? $decrypted : $stored;

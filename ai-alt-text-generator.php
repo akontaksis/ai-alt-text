@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AI Alt Text Generator
  * Description: Παράγει alt text για εικόνες χρησιμοποιώντας OpenAI (GPT-4o mini ή GPT-4o)
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Custom
  * License: GPL-2.0-or-later
  * Text Domain: ai-alt-text
@@ -10,7 +10,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'AATG_VERSION',    '1.1.0' );
+define( 'AATG_VERSION',    '1.2.0' );
 define( 'AATG_OPTION_KEY', 'aatg_settings' );
 define( 'AATG_PLUGIN_FILE', __FILE__ );
 

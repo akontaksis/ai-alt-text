@@ -41,6 +41,70 @@ function aatg_admin_page() {
         </h1>
         <p style="color:#666;margin-top:0">Παράγει alt text για εικόνες μέσω <strong>OpenAI GPT-4o mini</strong> ή <strong>GPT-4o</strong>.</p>
 
+        <?php /* ── DASHBOARD ── */ ?>
+        <div style="max-width:700px;margin-bottom:2rem">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:1.2rem">
+                <h2 style="margin:0;padding:0;border:none">Dashboard</h2>
+                <button id="aatg-refresh-stats" class="button" style="font-size:12px">↻ Ανανέωση</button>
+            </div>
+
+            <div id="aatg-stats-loading" style="color:#666;font-size:13px;padding:4px 0">
+                Φόρτωση στατιστικών…
+            </div>
+
+            <?php /* Stat cards */ ?>
+            <div id="aatg-stats-cards"
+                 style="display:none;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:1.4rem">
+            </div>
+
+            <?php /* Coverage bar */ ?>
+            <div id="aatg-coverage-wrap" style="display:none;margin-bottom:1.4rem">
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:5px">
+                    <span>Κάλυψη alt text</span>
+                    <strong id="aatg-coverage-pct">0%</strong>
+                </div>
+                <div style="background:#f0f0f1;border-radius:4px;overflow:hidden;height:14px">
+                    <div id="aatg-coverage-bar"
+                         style="height:100%;background:#00a32a;width:0%;transition:width .6s ease;border-radius:4px">
+                    </div>
+                </div>
+            </div>
+
+            <?php /* Total API cost */ ?>
+            <div id="aatg-cost-wrap"
+                 style="display:none;background:#f6f7f7;border:1px solid #ddd;border-radius:6px;
+                        padding:10px 16px;margin-bottom:1.4rem;gap:8px;align-items:center">
+                <span style="font-size:13px;color:#666">Εκτιμώμενο κόστος API (από ιστορικό):</span>
+                <strong id="aatg-total-cost" style="font-size:15px;color:#1d2327">$0.0000</strong>
+            </div>
+
+            <?php /* Run history */ ?>
+            <div id="aatg-history-wrap" style="display:none">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <strong style="font-size:13px">Ιστορικό εκτελέσεων</strong>
+                    <button id="aatg-clear-history" class="button button-small"
+                            style="color:#d63638;border-color:#d63638;font-size:12px">
+                        Διαγραφή ιστορικού
+                    </button>
+                </div>
+                <table class="wp-list-table widefat fixed striped" style="font-size:12px">
+                    <thead>
+                        <tr>
+                            <th style="width:32%">Ημερομηνία</th>
+                            <th style="width:15%">Εικόνες</th>
+                            <th style="width:13%">Σφάλματα</th>
+                            <th style="width:18%">Μοντέλο</th>
+                            <th style="width:12%">Κόστος</th>
+                            <th style="width:10%">Κατάσταση</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aatg-history-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <hr style="max-width:700px;margin:0 0 2rem">
+
         <?php /* ── SETTINGS FORM ── */ ?>
         <form method="post" style="max-width:700px">
             <?php wp_nonce_field( 'aatg_settings_nonce' ); ?>
@@ -192,7 +256,7 @@ function aatg_admin_page() {
             <p style="font-size:13px;color:#666">
                 Αν απενεργοποιήσεις ή διαγράψεις το plugin, τα <strong>alt texts που έχουν παραχθεί παραμένουν</strong> στη βάση δεδομένων —
                 αποθηκεύονται ως post meta στα attachments και δεν εξαρτώνται από το plugin.
-                Διαγράφεται μόνο η επιλογή <code>aatg_settings</code> (API key, ρυθμίσεις).
+                Διαγράφονται μόνο οι επιλογές <code>aatg_settings</code> (API key, ρυθμίσεις) και <code>aatg_run_history</code> (ιστορικό εκτελέσεων).
             </p>
         </div>
 
@@ -202,10 +266,11 @@ function aatg_admin_page() {
     (function($){
         var nonce      = '<?php echo esc_js( $bulk_nonce ); ?>';
         var batchSize  = <?php echo (int) $s['batch_size']; ?>;
-        var running    = false;
-        var stopFlag   = false;
-        var totalCount = 0;
-        var totalDone  = 0;
+        var running      = false;
+        var stopFlag     = false;
+        var totalCount   = 0;
+        var totalDone    = 0;
+        var totalErrors  = 0;
 
         // Delete API key
         $('#aatg-delete-key').on('click', function(){
@@ -264,15 +329,19 @@ function aatg_admin_page() {
                     $('#aatg-count-result').text(msg);
                 }
                 $btn.prop('disabled', false).text('Μέτρησε εικόνες χωρίς alt text');
+            }).fail(function(){
+                $('#aatg-count-result').text('✗ Σφάλμα σύνδεσης. Δοκίμασε ξανά.').css('color','#d63638');
+                $btn.prop('disabled', false).text('Μέτρησε εικόνες χωρίς alt text');
             });
         });
 
         // Start bulk
         $('#aatg-start-btn').on('click', function(){
             if(running) return;
-            running   = true;
-            stopFlag  = false;
-            totalDone = 0;
+            running      = true;
+            stopFlag     = false;
+            totalDone    = 0;
+            totalErrors  = 0;
 
             $('#aatg-progress-wrap').show();
             $('#aatg-done-msg').hide().html('');
@@ -311,7 +380,8 @@ function aatg_admin_page() {
                 }
 
                 var d = res.data;
-                totalDone += (d.processed || 0);
+                totalDone   += (d.processed || 0);
+                totalErrors += (d.errors    || 0);
 
                 // Log entries
                 if(d.log && d.log.length){
@@ -362,6 +432,17 @@ function aatg_admin_page() {
             $('#aatg-done-msg').show().html(
                 '<div class="notice notice-' + noticeType + ' inline"><p>' + escHtml(msg) + '</p></div>'
             );
+
+            // Αποθήκευση run στο ιστορικό και ανανέωση dashboard
+            if ( totalDone > 0 ) {
+                $.post(ajaxurl, {
+                    action    : 'aatg_save_run',
+                    nonce     : nonce,
+                    processed : totalDone,
+                    errors    : totalErrors,
+                    stopped   : isStopped ? 1 : 0,
+                }, function(){ setTimeout(loadStats, 400); });
+            }
         }
 
         function escHtml(str){
@@ -369,6 +450,90 @@ function aatg_admin_page() {
                 .replace(/&/g,'&amp;').replace(/</g,'&lt;')
                 .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
+
+        // ── Dashboard stats ──────────────────────────────────────────────────
+
+        function statCard(label, value, color) {
+            return '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;' +
+                   'padding:18px 12px;text-align:center;border-top:3px solid ' + color + '">' +
+                   '<div style="font-size:30px;font-weight:700;color:' + color + '">' + value + '</div>' +
+                   '<div style="font-size:12px;color:#666;margin-top:5px">' + escHtml(label) + '</div>' +
+                   '</div>';
+        }
+
+        function loadStats() {
+            $('#aatg-stats-loading').show().text('Φόρτωση στατιστικών…');
+            $('#aatg-stats-cards').hide();
+            $('#aatg-coverage-wrap').hide();
+            $('#aatg-cost-wrap').hide();
+            $('#aatg-history-wrap').hide();
+
+            $.post(ajaxurl, { action: 'aatg_get_stats', nonce: nonce }, function(res) {
+                $('#aatg-stats-loading').hide();
+                if ( ! res.success ) return;
+
+                var d = res.data;
+
+                // Cards
+                var noAltColor = d.without > 0 ? '#d63638' : '#00a32a';
+                $('#aatg-stats-cards').html(
+                    statCard('Σύνολο εικόνων',    d.total,    '#2271b1') +
+                    statCard('Με alt text',        d.with_alt, '#00a32a') +
+                    statCard('Χωρίς alt text',     d.without,  noAltColor)
+                ).css('display', 'grid');
+
+                // Coverage bar
+                $('#aatg-coverage-bar').css('width', d.pct + '%');
+                $('#aatg-coverage-pct').text(d.pct + '%');
+                $('#aatg-coverage-wrap').show();
+
+                // Cost
+                $('#aatg-total-cost').text('$' + parseFloat(d.total_cost).toFixed(4));
+                $('#aatg-cost-wrap').css('display', 'flex');
+
+                // History table
+                if ( d.history && d.history.length ) {
+                    var rows = '';
+                    d.history.forEach(function(h) {
+                        var errCell = h.errors > 0
+                            ? '<span style="color:#d63638">' + h.errors + '</span>'
+                            : '0';
+                        var status = h.stopped
+                            ? '<span style="color:#f0b429">■ Στάση</span>'
+                            : '<span style="color:#00a32a">✓ OK</span>';
+                        rows += '<tr>' +
+                            '<td>' + escHtml(h.date) + '</td>' +
+                            '<td>' + h.processed + '</td>' +
+                            '<td>' + errCell + '</td>' +
+                            '<td style="font-family:monospace">' + escHtml(h.model) + '</td>' +
+                            '<td>$' + parseFloat(h.cost_est).toFixed(4) + '</td>' +
+                            '<td>' + status + '</td>' +
+                            '</tr>';
+                    });
+                    $('#aatg-history-tbody').html(rows);
+                    $('#aatg-history-wrap').show();
+                }
+            }).fail(function(){
+                $('#aatg-stats-loading').text('✗ Σφάλμα φόρτωσης. Δοκίμασε ξανά με ↻ Ανανέωση.').css('color','#d63638').show();
+            });
+        }
+
+        // Φόρτωση stats κατά την είσοδο στη σελίδα
+        loadStats();
+
+        $('#aatg-refresh-stats').on('click', loadStats);
+
+        $('#aatg-clear-history').on('click', function() {
+            if ( ! confirm('Είσαι σίγουρος; Το ιστορικό θα διαγραφεί οριστικά.') ) return;
+            var $btn = $(this);
+            $btn.prop('disabled', true);
+            $.post(ajaxurl, { action: 'aatg_clear_history', nonce: nonce }, function(res) {
+                $btn.prop('disabled', false);
+                if ( res.success ) loadStats();
+            }).fail(function(){
+                $btn.prop('disabled', false);
+            });
+        });
 
     })(jQuery);
     </script>

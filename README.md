@@ -23,6 +23,19 @@ WordPress plugin που παράγει αυτόματα alt text για εικό
 
 ## Λειτουργίες
 
+### Dashboard
+
+Εμφανίζεται στην κορυφή της σελίδας Media → AI Alt Text και ενημερώνεται αυτόματα:
+
+- **Στατιστικά εικόνων** — Σύνολο / Με alt text / Χωρίς alt text (με χρωματική ένδειξη)
+- **Μπάρα κάλυψης** — Οπτική απεικόνιση ποσοστού εικόνων με alt text
+- **Εκτιμώμενο κόστος API** — Αθροιστικό κόστος από όλες τις εκτελέσεις (βάσει ιστορικού)
+- **Ιστορικό εκτελέσεων** — Πίνακας με τις τελευταίες 20 εκτελέσεις: ημερομηνία, εικόνες που επεξεργάστηκαν, σφάλματα, μοντέλο, κόστος, κατάσταση
+- Κουμπί **↻ Ανανέωση** για άμεση ενημέρωση
+- Κουμπί **Διαγραφή ιστορικού** για εκκαθάριση
+
+Μετά από κάθε bulk generation (ολοκλήρωση ή διακοπή), το dashboard ανανεώνεται αυτόματα.
+
 ### Ρυθμίσεις
 
 | Ρύθμιση | Τιμές | Περιγραφή |
@@ -89,22 +102,31 @@ WordPress plugin που παράγει αυτόματα alt text για εικό
 ```
 ai-alt-text/
 ├── ai-alt-text-generator.php   # Main plugin file, constants, activation hook
-├── uninstall.php               # Διαγράφει option από DB κατά την απεγκατάσταση
+├── uninstall.php               # Διαγράφει options από DB κατά την απεγκατάσταση
 ├── README.md
 └── includes/
     ├── security.php            # Capability checks, nonce verification, encrypt/decrypt, settings CRUD
     ├── openai.php              # OpenAI API call — αναλύει εικόνα και επιστρέφει alt text
-    ├── ajax.php                # AJAX handlers: bulk generate, count, test key, delete key
-    └── admin.php               # Admin page UI και settings form
+    ├── ajax.php                # AJAX handlers: bulk generate, count, test key, delete key, stats, history
+    └── admin.php               # Admin page UI: dashboard, settings form, bulk generation
 ```
 
 ## Απεγκατάσταση
 
-Κατά τη διαγραφή του plugin (Delete από το WordPress), διαγράφεται **μόνο** το option `aatg_settings` (API key + ρυθμίσεις).
+Κατά τη διαγραφή του plugin (Delete από το WordPress), διαγράφονται τα options `aatg_settings` (API key + ρυθμίσεις) και `aatg_run_history` (ιστορικό εκτελέσεων).
 
 Τα alt texts που έχουν παραχθεί **παραμένουν** — αποθηκεύονται ως `_wp_attachment_image_alt` post meta στα attachments και δεν εξαρτώνται από το plugin.
 
 ## Changelog
+
+### 1.2.0
+- Dashboard με στατιστικά εικόνων (σύνολο / με alt text / χωρίς)
+- Μπάρα κάλυψης alt text
+- Εκτιμώμενο κόστος API (αθροιστικό από ιστορικό)
+- Ιστορικό εκτελέσεων (αποθηκεύεται αυτόματα, τελευταίες 20)
+- Αυτόματη ανανέωση dashboard μετά από κάθε bulk run
+- Διόρθωση: έλεγχος null σε απάντηση OpenAI με μη έγκυρο JSON
+- Διόρθωση: `.fail()` handlers σε όλα τα AJAX calls
 
 ### 1.1.0
 - Κρυπτογράφηση API key με AES-256-CBC
