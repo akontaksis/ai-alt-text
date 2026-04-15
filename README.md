@@ -54,6 +54,23 @@ WordPress plugin που παράγει αυτόματα alt text για εικό
 - Log σε πραγματικό χρόνο (επιτυχία / αποτύχια ανά εικόνα)
 - Κουμπί διακοπής που σταματά στο τέλος του τρέχοντος batch
 
+### SVG υποστήριξη
+
+Τα SVG δεν γίνονται αποδεκτά από το OpenAI Vision, οπότε αντιμετωπίζονται διαφορετικά:
+
+1. Εξάγει αυτόματα το περιεχόμενο του SVG αρχείου (`<title>`, `<desc>`, `<text>` elements)
+2. Στέλνει text-only prompt στο OpenAI (χωρίς εικόνα) — πιο γρήγορο και φθηνό
+3. Αν το SVG δεν έχει κανένα κείμενο/τίτλο/περιγραφή, εμφανίζεται error στο log
+
+| Στοιχείο SVG | Χρησιμοποιείται ως |
+|---|---|
+| `<title>` | Τίτλος του SVG |
+| `<desc>` | Περιγραφή |
+| `<text>` / `<tspan>` | Ορατό κείμενο |
+| Όνομα αρχείου | Πάντα συμπεριλαμβάνεται |
+
+> **Σημείωση:** SVG χωρίς κείμενο (π.χ. pure geometric shapes) δεν μπορούν να αναλυθούν αυτόματα — προσθέστε alt text manually από τη Media Library.
+
 ### Test Key
 
 Ελέγχει αν το API key είναι έγκυρο κάνοντας ένα δωρεάν call στο OpenAI `/v1/models` endpoint — δεν ξοδεύει credits.
@@ -97,6 +114,8 @@ WordPress plugin που παράγει αυτόματα alt text για εικό
 
 Οι εικόνες αναλύονται με `detail: low` για μείωση κόστους — επαρκές για alt text.
 
+> Τα SVG επεξεργάζονται με text-only call (εξαγωγή XML metadata) — κόστος παρόμοιο με gpt-4o-mini.
+
 ## Δομή αρχείων
 
 ```
@@ -106,7 +125,7 @@ ai-alt-text/
 ├── README.md
 └── includes/
     ├── security.php            # Capability checks, nonce verification, encrypt/decrypt, settings CRUD
-    ├── openai.php              # OpenAI API call — αναλύει εικόνα και επιστρέφει alt text
+    ├── openai.php              # OpenAI API calls — Vision για PNG/JPEG/GIF/WEBP, text-only για SVG
     ├── ajax.php                # AJAX handlers: bulk generate, count, test key, delete key, stats, history
     └── admin.php               # Admin page UI: dashboard, settings form, bulk generation
 ```
@@ -118,6 +137,11 @@ ai-alt-text/
 Τα alt texts που έχουν παραχθεί **παραμένουν** — αποθηκεύονται ως `_wp_attachment_image_alt` post meta στα attachments και δεν εξαρτώνται από το plugin.
 
 ## Changelog
+
+### 1.3.0
+- Υποστήριξη SVG: εξαγωγή `<title>`, `<desc>`, `<text>` από SVG XML και text-only OpenAI call
+- SVG συμπεριλαμβάνονται στο count, στα stats και στο bulk generation
+- Fix: αντικατάσταση `post_mime_type: 'image'` με allowlist PNG/JPEG/GIF/WEBP/SVG — αποτρέπει αποστολή μη υποστηριζόμενων formats (BMP, TIFF κλπ) στο OpenAI
 
 ### 1.2.0
 - Dashboard με στατιστικά εικόνων (σύνολο / με alt text / χωρίς)
