@@ -123,6 +123,20 @@ function aatg_ajax_count_images() {
     wp_send_json_success( [ 'count' => count( $ids ) ] );
 }
 
+// ─── Delete API key ───────────────────────────────────────────────────────────
+add_action( 'wp_ajax_aatg_delete_key', 'aatg_ajax_delete_key' );
+
+function aatg_ajax_delete_key() {
+    aatg_verify_ajax_nonce( 'aatg_bulk_nonce', 'nonce' );
+    aatg_check_capability();
+
+    $existing            = get_option( AATG_OPTION_KEY, [] );
+    $existing['api_key'] = '';
+    update_option( AATG_OPTION_KEY, $existing );
+
+    wp_send_json_success( 'Το API key διαγράφηκε.' );
+}
+
 // ─── Test API key ─────────────────────────────────────────────────────────────
 add_action( 'wp_ajax_aatg_test_key', 'aatg_ajax_test_key' );
 

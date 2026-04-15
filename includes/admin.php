@@ -50,19 +50,25 @@ function aatg_admin_page() {
                 <tr>
                     <th scope="row"><label for="aatg_api_key">OpenAI API Key</label></th>
                     <td>
-                        <div style="display:flex;gap:8px;align-items:center">
+                        <p id="aatg-key-status" style="margin:0 0 6px;font-size:13px;font-weight:500;color:#2e7d32<?php echo $has_key ? '' : ';display:none'; ?>">
+                            ✓ API key είναι ρυθμισμένο
+                        </p>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                             <input type="password"
                                    id="aatg_api_key"
                                    name="aatg_api_key"
-                                   value="<?php echo esc_attr( $s['api_key'] ); ?>"
+                                   value=""
                                    class="regular-text"
-                                   autocomplete="off"
-                                   placeholder="sk-proj-..."
+                                   autocomplete="new-password"
+                                   placeholder="<?php echo $has_key ? 'Άφησε κενό για να μη αλλάξει' : 'sk-proj-...'; ?>"
                                    style="font-family:monospace" />
-                            <button type="button" id="aatg-toggle-key" class="button" title="Εμφάνιση/Απόκρυψη">👁</button>
                             <button type="button" id="aatg-test-key" class="button"
                                     <?php echo $has_key ? '' : 'disabled'; ?>>
                                 Test Key
+                            </button>
+                            <button type="button" id="aatg-delete-key" class="button button-link-delete"
+                                    style="<?php echo $has_key ? '' : 'display:none'; ?>">
+                                Διαγραφή Key
                             </button>
                         </div>
                         <span id="aatg-test-result" style="display:block;margin-top:6px;font-size:13px"></span>
@@ -201,10 +207,28 @@ function aatg_admin_page() {
         var totalCount = 0;
         var totalDone  = 0;
 
-        // Toggle key visibility
-        $('#aatg-toggle-key').on('click', function(){
-            var $f = $('#aatg_api_key');
-            $f.attr('type', $f.attr('type') === 'password' ? 'text' : 'password');
+        // Delete API key
+        $('#aatg-delete-key').on('click', function(){
+            if ( ! confirm('Είσαι σίγουρος; Το API key θα διαγραφεί οριστικά.') ) return;
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Διαγράφω...');
+
+            $.post(ajaxurl, { action: 'aatg_delete_key', nonce: nonce }, function(res){
+                if ( res.success ) {
+                    $('#aatg-key-status').hide();
+                    $('#aatg_api_key').attr('placeholder', 'sk-proj-...');
+                    $('#aatg-test-key').prop('disabled', true);
+                    $('#aatg-start-btn').prop('disabled', true);
+                    $btn.hide();
+                    $('#aatg-test-result').text('✓ Το API key διαγράφηκε.').css('color','#2e7d32');
+                } else {
+                    $btn.prop('disabled', false).text('Διαγραφή Key');
+                    $('#aatg-test-result').text('✗ ' + res.data).css('color','#d63638');
+                }
+            }).fail(function(){
+                $btn.prop('disabled', false).text('Διαγραφή Key');
+                $('#aatg-test-result').text('✗ Σφάλμα σύνδεσης').css('color','#d63638');
+            });
         });
 
         // Test API key

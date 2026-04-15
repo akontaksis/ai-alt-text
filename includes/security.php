@@ -25,7 +25,52 @@ function aatg_verify_ajax_nonce( $action = 'aatg_bulk_nonce', $field = 'nonce' )
 }
 
 /**
+ * Κρυπτογραφεί το API key (AES-256-CBC) πριν την αποθήκευση.
+ * Χρησιμοποιεί το AUTH_KEY του wp-config.php ως master key.
+ *
+ * @param string $key  Plaintext API key.
+ * @return string      Base64-encoded encrypted value, ή κενό string.
+ */
+function aatg_encrypt_api_key( $key ) {
+    if ( empty( $key ) ) return '';
+    if ( ! function_exists( 'openssl_encrypt' ) ) return $key; // fallback: no openssl
+
+    $salt    = defined( 'AUTH_KEY' ) ? AUTH_KEY : wp_salt( 'auth' );
+    $enc_key = substr( hash( 'sha256', $salt ), 0, 32 );
+    $iv_len  = openssl_cipher_iv_length( 'AES-256-CBC' );
+    $iv      = openssl_random_pseudo_bytes( $iv_len );
+    $enc     = openssl_encrypt( $key, 'AES-256-CBC', $enc_key, 0, $iv );
+
+    return base64_encode( $iv . '::' . $enc );
+}
+
+/**
+ * Αποκρυπτογραφεί το API key από τη βάση.
+ * Αν το αποθηκευμένο key δεν είναι κρυπτογραφημένο (legacy), το επιστρέφει ως έχει.
+ *
+ * @param string $stored  Encrypted (ή legacy plaintext) API key.
+ * @return string         Plaintext API key.
+ */
+function aatg_decrypt_api_key( $stored ) {
+    if ( empty( $stored ) ) return '';
+    if ( ! function_exists( 'openssl_decrypt' ) ) return $stored;
+
+    $data = base64_decode( $stored, true );
+    if ( $data === false || strpos( $data, '::' ) === false ) {
+        return $stored; // legacy plaintext — επιστρέφεται ως έχει
+    }
+
+    $salt      = defined( 'AUTH_KEY' ) ? AUTH_KEY : wp_salt( 'auth' );
+    $enc_key   = substr( hash( 'sha256', $salt ), 0, 32 );
+    list( $iv, $enc ) = explode( '::', $data, 2 );
+    $decrypted = openssl_decrypt( $enc, 'AES-256-CBC', $enc_key, 0, $iv );
+
+    return ( $decrypted !== false ) ? $decrypted : $stored;
+}
+
+/**
  * Επιστρέφει καθαρισμένες ρυθμίσεις — ποτέ raw option.
+ * Το api_key επιστρέφεται αποκρυπτογραφημένο (για χρήση στα API calls).
  *
  * @return array
  */
@@ -38,11 +83,11 @@ function aatg_get_settings() {
         'batch_size' => 5,
     ];
 
-    $saved = get_option( AATG_OPTION_KEY, [] );
+    $saved  = get_option( AATG_OPTION_KEY, [] );
     $merged = wp_parse_args( $saved, $defaults );
 
-    // Sanitize
-    $merged['api_key']    = sanitize_text_field( $merged['api_key'] );
+    // Αποκρυπτογράφηση + sanitization
+    $merged['api_key']    = sanitize_text_field( aatg_decrypt_api_key( $merged['api_key'] ) );
     $merged['language']   = in_array( $merged['language'], [ 'el', 'en' ], true ) ? $merged['language'] : 'el';
     $merged['model']      = in_array( $merged['model'], [ 'gpt-4o-mini', 'gpt-4o' ], true ) ? $merged['model'] : 'gpt-4o-mini';
     $merged['overwrite']  = (int) $merged['overwrite'];
@@ -53,13 +98,25 @@ function aatg_get_settings() {
 
 /**
  * Αποθηκεύει ρυθμίσεις μετά από sanitization.
+ * Το API key αποθηκεύεται κρυπτογραφημένο.
+ * Αν το key field αφεθεί κενό, το υπάρχον key διατηρείται.
  *
  * @param array $raw  Raw POST data.
  * @return array      Καθαρισμένες ρυθμίσεις που αποθηκεύτηκαν.
  */
 function aatg_save_settings( $raw ) {
+    $existing = get_option( AATG_OPTION_KEY, [] );
+    $new_key  = sanitize_text_field( $raw['aatg_api_key'] ?? '' );
+
+    if ( empty( $new_key ) && ! empty( $existing['api_key'] ) ) {
+        // Κενό field = "μη αλλάξεις το key" — κρατάμε το υπάρχον encrypted
+        $api_key_stored = $existing['api_key'];
+    } else {
+        $api_key_stored = aatg_encrypt_api_key( $new_key );
+    }
+
     $clean = [
-        'api_key'    => sanitize_text_field( $raw['aatg_api_key'] ?? '' ),
+        'api_key'    => $api_key_stored,
         'language'   => in_array( $raw['aatg_language'] ?? '', [ 'el', 'en' ], true )
                         ? $raw['aatg_language'] : 'el',
         'model'      => in_array( $raw['aatg_model'] ?? '', [ 'gpt-4o-mini', 'gpt-4o' ], true )
