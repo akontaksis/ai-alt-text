@@ -2,15 +2,17 @@
 /**
  * Plugin Name: AI Alt Text Generator
  * Description: Παράγει alt text για εικόνες χρησιμοποιώντας OpenAI (GPT-4o mini ή GPT-4o)
- * Version: 1.2.0
- * Author: Custom
+ * Version: 1.3.0
+ * Author: Athanasios Kontaksis
+ * Author URI: https://github.com/akontaksis
+ * Plugin URI: https://github.com/akontaksis/ai-alt-text
  * License: GPL-2.0-or-later
  * Text Domain: ai-alt-text
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'AATG_VERSION',    '1.2.0' );
+define( 'AATG_VERSION',    '1.3.0' );
 define( 'AATG_OPTION_KEY', 'aatg_settings' );
 define( 'AATG_PLUGIN_FILE', __FILE__ );
 
